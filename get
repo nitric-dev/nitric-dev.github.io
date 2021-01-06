@@ -1,0 +1,90 @@
+#!/bin/sh
+
+set -e
+
+reset="\033[0m"
+red="\033[31m"
+green="\033[32m"
+yellow="\033[33m"
+cyan="\033[36m"
+white="\033[37m"
+
+# TODO: Remove this when ready for release
+printf "$green Thank you for your interest in Nitric, we're building our way towards an open beta release soon, stay tuned at https://nitric.io $reset\n"
+exit 1
+
+printf "\n$yellow Installing Nitrc!$reset\n\n"
+
+# Detect platform
+if [[ $OSTYPE == "linux-gnu" ]]; then
+  PLATFORM="linux"
+elif [[ $OSTYPE == "darwin"* ]]; then
+  PLATFORM="macos"
+else
+  printf "$red Sorry, there's no Nitric binary installer available for this platform. Please open request for it at https://github.com/nitric-dev/cli/issues.$reset\n"
+  exit 1
+fi
+
+# Detect architecture
+MACHINE_TYPE=`uname -m`
+if [[ $MACHINE_TYPE == "x86_64" ]]; then
+  ARCH='x64'
+else
+  printf "$red Sorry, there's no Nitric installer available for $MACHINE_TYPE architecture. If you'd like one you're welcome to request it at https://github.com/nitric-dev/cli/issues.$reset\n"
+  exit 1
+fi
+
+LATEST_TAG=`curl -L --silent https://api.github.com/repos/nitric-dev/cli/releases/latest 2>&1 | grep 'tag_name' | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+"`
+BINARY_URL=https://github.com/nitric-dev/cli/releases/download/$LATEST_TAG/nitric-$PLATFORM-$ARCH
+
+# Dowload binary
+BINARIES_DIR_PATH=$HOME/.nitric/bin
+BINARY_PATH=$BINARIES_DIR_PATH/nitric
+mkdir -p $BINARIES_DIR_PATH
+printf "$yellow Downloading binary...$reset\n"
+
+curl -L -o $BINARY_PATH $BINARY_URL
+chmod +x $BINARY_PATH
+
+# Add to $PATH
+SOURCE_STR="# Added by nitric binary installer\nexport PATH=\"\$HOME/.nitric/bin:\$PATH\"\n"
+add_to_path () {
+  command printf "\n$SOURCE_STR" >> "$1"
+  printf "\n$yellow Added the following to $1:\n\n$SOURCE_STR$reset"
+}
+SHELLTYPE="$(basename "/$SHELL")"
+if [[ $SHELLTYPE = "fish" ]]; then
+  command fish -c 'set -U fish_user_paths $fish_user_paths ~/.nitric/bin'
+  printf "\n$yellow Added ~/.nitric/bin to fish_user_paths universal variable$reset."
+elif [[ $SHELLTYPE = "zsh" ]]; then
+  SHELL_CONFIG=$HOME/.zshrc
+  if [ ! -r $SHELL_CONFIG ] || (! `grep -q '.nitric/bin' $SHELL_CONFIG`); then
+    add_to_path $SHELL_CONFIG
+  fi
+else
+  SHELL_CONFIG=$HOME/.bashrc
+  if [ ! -r $SHELL_CONFIG ] || (! `grep -q '.nitric/bin' $SHELL_CONFIG`); then
+    add_to_path $SHELL_CONFIG
+  fi
+  SHELL_CONFIG=$HOME/.bash_profile
+  if [[ -r $SHELL_CONFIG ]]; then
+    if [[ ! $(grep -q '.nitric/bin' $SHELL_CONFIG) ]]; then
+      add_to_path $SHELL_CONFIG
+    fi
+  else
+    SHELL_CONFIG=$HOME/.bash_login
+    if [[ -r $SHELL_CONFIG ]]; then
+      if [[ ! $(grep -q '.nitric/bin' $SHELL_CONFIG) ]]; then
+        add_to_path $SHELL_CONFIG
+      fi
+    else
+      SHELL_CONFIG=$HOME/.profile
+      if [ ! -r $SHELL_CONFIG ] || (! `grep -q '.nitric/bin' $SHELL_CONFIG`); then
+        add_to_path $SHELL_CONFIG
+      fi
+    fi
+  fi
+fi
+
+# TODO: Add post install if necessary
+# $HOME/.nitric/bin/nitric binary-postinstall
